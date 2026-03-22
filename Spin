@@ -1,0 +1,109 @@
+local player = game.Players.LocalPlayer
+local gui = Instance.new("ScreenGui")
+gui.Name = "SpinHackGUI"
+gui.Parent = player:WaitForChild("PlayerGui")
+
+-- BOTÃO ABRIR/FECHAR
+local toggle = Instance.new("TextButton")
+toggle.Size = UDim2.new(0,120,0,40)
+toggle.Position = UDim2.new(0,10,0,10)
+toggle.Text = "ABRIR"
+toggle.BackgroundColor3 = Color3.fromRGB(40,40,40)
+toggle.TextColor3 = Color3.new(1,1,1)
+toggle.Parent = gui
+
+-- FRAME
+local frame = Instance.new("Frame")
+frame.Size = UDim2.new(0,220,0,150)
+frame.Position = UDim2.new(0.5,-110,0.5,-75)
+frame.BackgroundColor3 = Color3.fromRGB(25,25,25)
+frame.Visible = false
+frame.Parent = gui
+
+-- BOTÃO SPIN
+local spinBtn = Instance.new("TextButton")
+spinBtn.Size = UDim2.new(0,180,0,50)
+spinBtn.Position = UDim2.new(0.5,-90,0.5,-25)
+spinBtn.Text = "SPIN OFF"
+spinBtn.BackgroundColor3 = Color3.fromRGB(60,60,60)
+spinBtn.TextColor3 = Color3.new(1,1,1)
+spinBtn.Parent = frame
+
+-- REMOTE EVENT
+local remote = game.ReplicatedStorage:WaitForChild("SpinEvent")
+
+local ativo = false
+
+spinBtn.MouseButton1Click:Connect(function()
+	ativo = not ativo
+	
+	if ativo then
+		spinBtn.Text = "SPIN ON"
+	else
+		spinBtn.Text = "SPIN OFF"
+	end
+	
+	remote:FireServer(ativo)
+end)
+
+toggle.MouseButton1Click:Connect(function()
+	frame.Visible = not frame.Visible
+	
+	if frame.Visible then
+		toggle.Text = "FECHAR"
+	else
+		toggle.Text = "ABRIR"
+	end
+end)
+
+local replicated = game:GetService("ReplicatedStorage")
+
+-- Criar RemoteEvent
+local remote = Instance.new("RemoteEvent")
+remote.Name = "SpinEvent"
+remote.Parent = replicated
+
+local spinningPlayers = {}
+
+remote.OnServerEvent:Connect(function(player, ativo)
+	local char = player.Character
+	if not char then return end
+	
+	local hrp = char:FindFirstChild("HumanoidRootPart")
+	if not hrp then return end
+	
+	if ativo then
+		spinningPlayers[player] = true
+		
+		-- GIRO
+		task.spawn(function()
+			while spinningPlayers[player] and hrp.Parent do
+				hrp.CFrame = hrp.CFrame * CFrame.Angles(0, math.rad(50), 0)
+				task.wait()
+			end
+		end)
+		
+		-- EMPURRAR OUTROS
+		hrp.Touched:Connect(function(hit)
+			local otherChar = hit.Parent
+			local otherHum = otherChar and otherChar:FindFirstChild("Humanoid")
+			
+			if otherHum and otherChar ~= char then
+				local otherRoot = otherChar:FindFirstChild("HumanoidRootPart")
+				if otherRoot then
+					local direction = (otherRoot.Position - hrp.Position).Unit
+					
+					local bodyVel = Instance.new("BodyVelocity")
+					bodyVel.Velocity = direction * 100
+					bodyVel.MaxForce = Vector3.new(1e5,1e5,1e5)
+					bodyVel.Parent = otherRoot
+					
+					game.Debris:AddItem(bodyVel, 0.3)
+				end
+			end
+		end)
+		
+	else
+		spinningPlayers[player] = nil
+	end
+end)
